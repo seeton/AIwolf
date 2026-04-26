@@ -2,18 +2,18 @@
 
 ## A. リポジトリ / インフラ (すぐ片付く系)
 
-- [ ] 初回 commit (現状すべて untracked)
-- [ ] GitHub リモート作成 (`gh repo create AIwolf`) と push
-- [ ] `.gitkeep` 削除 (`web/` `docs/` にコンテンツが入ったので冗長)
-- [ ] 実機 (iPhone Safari) での動作確認
-- [ ] (任意) GitHub Pages 等で URL 配信
+- [x] 初回 commit (`c5b56ba` Bootstrap)
+- [x] GitHub リモート作成 + push (`https://github.com/seeton/AIwolf`)
+- [x] `.gitkeep` 削除
+- [ ] 実機 (iPhone Safari) での動作確認 — ユーザ手動 (Pages 公開済み: `https://seeton.github.io/AIwolf/`)
+- [x] GitHub Pages で URL 配信 (`.github/workflows/pages.yml` で `web/` をデプロイ)
 
 ## B. コード — 既存実装の改善
 
 - [ ] お題オフトピック判定を LLM / 埋め込み類似度に置換 (現状の単純キーワードマッチはキーワード混入で突破可)
 - [ ] MBTI ペルソナの強度パラメータ化 (固定 vs 可変、overfit 防止)
-- [ ] 非プレイヤー発話の pacing / streak 制御の妥当性検証
-- [ ] お題の短期再出題抑止
+- [ ] 非プレイヤー発話の pacing / streak 制御の妥当性検証 — 計測ログが出るようになったので Round 3 候補
+- [x] お題の短期再出題抑止 (`TOPIC_HISTORY_LIMIT=2` 件を `state.recentTopicTitles` で除外)
 - [ ] 移植直後の streak バグ修正 (`web/app.js:163` `blockedIndex >= 0`) の自動テスト化 — 現状テスト基盤なし
 
 ## C. コード — 未実装機能
@@ -25,8 +25,8 @@
 - [ ] 信頼度の双方向化 (現状: 隠れ人間 → プレイヤーのみ)
 - [ ] ラウンド中の「怪しい」フラグ付け中間 UI
 - [ ] お題カードの追加運用フロー (誰が / どう承認 / どこに置く)
-- [ ] お題難易度ラベル
-- [ ] 計測ログ出力先決定 (`localStorage` / `console` / なし)
+- [x] お題難易度ラベル (`difficulty: easy|medium` を TOPICS に追加、`#topic-difficulty` で表示)
+- [x] 計測ログ出力先決定 — `console` + `localStorage` 両方採用 (終局時 `[AIwolf] session metrics:` 出力 / `aiwolf:metrics-history` に最大 50 件保持)
 - [ ] 隠れ人間のペルソナ崩れ検知 (崩れたら判定減点 etc.)
 
 ## D. パラメータ決定 (現状ハードコード or 未定)
@@ -40,7 +40,7 @@
 ## E. ドキュメント
 
 - [ ] `docs/spec.md` `persona.md` `trust.md` `eval.md` の「未決事項」を順次解消
-- [ ] アーキテクチャ図 / ゲームフロー図
+- [x] アーキテクチャ図 / ゲームフロー図 (`docs/architecture.md` に mermaid で 3 図)
 - [ ] マルチプレイヤー化したらサーバ・クライアント責務分割図
 
 ## F. プロセス / 品質
@@ -61,7 +61,7 @@
 
 ## 優先順の目安
 
-1. **A** をまず潰す (commit / push して落ち着いて作業を track できる状態を作る)
+1. **A** をまず潰す → done
 2. **B のオフトピック判定改善** は体験への効きが大きいので早め
-3. **D の baseline 測定** はバランス調整の前提なので「実機で何度かプレイ → 数字取る」を一度入れる
+3. **D の baseline 測定** はバランス調整の前提なので「実機で何度かプレイ → 数字取る」を一度入れる (Round 2 で計測ログが出るようになったので地ならし完了)
 4. **C のマルチプレイヤー化** は別リポジトリ規模の大物。MVP 単体で楽しめる状態にしてから着手

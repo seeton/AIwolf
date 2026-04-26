@@ -2,6 +2,7 @@ const TOPICS = [
   {
     title: "雨の日の過ごし方",
     description: "雨の日に家や外でどう過ごすか。具体的な行動や気分を交えて話してください。",
+    difficulty: "easy",
     keywords: ["雨", "傘", "室内", "カフェ", "本", "映画", "散歩", "音"],
     prompts: ["雨の日は", "傘を持つなら", "家にいるなら", "外に出るなら"],
     details: ["窓の音", "温かい飲み物", "足元", "空気の匂い"]
@@ -9,6 +10,7 @@ const TOPICS = [
   {
     title: "コンビニでつい買うもの",
     description: "コンビニで目的外につい手に取るものを、理由込みで話してください。",
+    difficulty: "easy",
     keywords: ["コンビニ", "お菓子", "飲み物", "レジ", "新作", "夜", "スイーツ", "棚"],
     prompts: ["コンビニだと", "夜に寄ると", "新作を見ると", "レジ前では"],
     details: ["限定感", "小腹", "甘さ", "気分転換"]
@@ -16,6 +18,7 @@ const TOPICS = [
   {
     title: "学生時代の昼休み",
     description: "学生時代の昼休みにしていたことや、印象に残っている場面を話してください。",
+    difficulty: "medium",
     keywords: ["昼休み", "教室", "校庭", "購買", "友達", "弁当", "席", "授業"],
     prompts: ["昼休みは", "購買に行くなら", "教室では", "友達といると"],
     details: ["席替え", "時間の短さ", "人気メニュー", "笑い声"]
@@ -23,6 +26,7 @@ const TOPICS = [
   {
     title: "旅行先で好きな時間帯",
     description: "旅行先で一番好きな時間帯と、その理由を話してください。",
+    difficulty: "medium",
     keywords: ["旅行", "朝", "夜", "散歩", "景色", "ホテル", "駅", "食事"],
     prompts: ["旅行だと", "朝なら", "夜なら", "移動中は"],
     details: ["静けさ", "空気", "明かり", "期待感"]
@@ -49,6 +53,54 @@ const HIDDEN_HUMAN_TRUST_VARIANCE = 0.18;
 const MAX_MESSAGE_SCORE = 0.45;
 const MAX_CALLBACK_LENGTH = 18;
 const TRUST_RECOGNITION_THRESHOLD = 0.75;
+const TOPIC_HISTORY_LIMIT = 2;
+const METRICS_HISTORY_KEY = "aiwolf:metrics-history";
+const METRICS_HISTORY_MAX = 50;
+
+const metrics = {
+  startedAt: 0,
+  endedAt: 0,
+  topicTitle: "",
+  topicDifficulty: "",
+  config: { aiCount: 0, humanCount: 0, rounds: 0 },
+  topicRejectCount: 0,
+  playerSkipCount: 0,
+  playerSendCount: 0,
+  agentSpeechCounts: {},
+  trustSnapshot: [],
+  finalResult: ""
+};
+
+function resetMetrics() {
+  metrics.startedAt = Date.now();
+  metrics.endedAt = 0;
+  metrics.topicTitle = state.topic ? state.topic.title : "";
+  metrics.topicDifficulty = state.topic ? state.topic.difficulty : "";
+  metrics.config = {
+    aiCount: state.config.aiCount,
+    humanCount: state.config.humanCount,
+    rounds: state.config.rounds
+  };
+  metrics.topicRejectCount = 0;
+  metrics.playerSkipCount = 0;
+  metrics.playerSendCount = 0;
+  metrics.agentSpeechCounts = {};
+  metrics.trustSnapshot = [];
+  metrics.finalResult = "";
+}
+
+function persistMetrics() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(METRICS_HISTORY_KEY) || "[]");
+    stored.push({ ...metrics });
+    localStorage.setItem(
+      METRICS_HISTORY_KEY,
+      JSON.stringify(stored.slice(-METRICS_HISTORY_MAX))
+    );
+  } catch (error) {
+    console.warn("metrics persistence failed", error);
+  }
+}
 
 const state = {
   config: {
@@ -59,6 +111,7 @@ const state = {
     streakLimit: 1
   },
   topic: null,
+  recentTopicTitles: [],
   participants: [],
   chat: [],
   currentRound: 1,
@@ -79,6 +132,7 @@ const elements = {
   topicTitle: document.getElementById("topic-title"),
   topicDescription: document.getElementById("topic-description"),
   topicKeywords: document.getElementById("topic-keywords"),
+  topicDifficulty: document.getElementById("topic-difficulty"),
   shuffleTopic: document.getElementById("shuffle-topic"),
   startGame: document.getElementById("start-game"),
   setupPanel: document.getElementById("setup-panel"),
@@ -168,10 +222,16 @@ function applyStreakLimit(participants) {
 }
 
 function pickTopic() {
-  state.topic = randomItem(TOPICS);
+  const candidates = TOPICS.filter((topic) => !state.recentTopicTitles.includes(topic.title));
+  const pool = candidates.length > 0 ? candidates : TOPICS;
+  state.topic = randomItem(pool);
+  state.recentTopicTitles = [state.topic.title, ...state.recentTopicTitles].slice(0, TOPIC_HISTORY_LIMIT);
   elements.topicTitle.textContent = state.topic.title;
   elements.topicDescription.textContent = state.topic.description;
   elements.topicKeywords.textContent = `必須キーワード候補: ${state.topic.keywords.join(" / ")}`;
+  if (elements.topicDifficulty) {
+    elements.topicDifficulty.textContent = `難易度: ${state.topic.difficulty}`;
+  }
 }
 
 function updateSetupValues() {
@@ -353,6 +413,7 @@ function processAgentTurns() {
   const speakers = applyStreakLimit(state.participants.filter((participant) => participant.id !== "player"));
 
   speakers.forEach((participant) => {
+    metrics.agentSpeechCounts[participant.id] = (metrics.agentSpeechCounts[participant.id] || 0) + 1;
     addChatMessage({
       speakerId: participant.id,
       speaker: formatParticipantRole(participant),
@@ -372,10 +433,12 @@ function submitPlayerMessage() {
     return;
   }
   if (!isOnTopic(text)) {
+    metrics.topicRejectCount += 1;
     elements.systemMessage.textContent = "お題外の発言は禁止です。キーワードを含めてください。";
     return;
   }
 
+  metrics.playerSendCount += 1;
   addChatMessage({
     speakerId: "player",
     speaker: "あなた",
@@ -444,6 +507,17 @@ function evaluateResult() {
   ];
 
   elements.resultSummary.innerHTML = summaryBlocks.join("");
+
+  metrics.endedAt = Date.now();
+  metrics.finalResult = title;
+  metrics.trustSnapshot = hiddenHumans.map((participant) => ({
+    name: participant.name,
+    mbti: participant.mbti,
+    trustTowardPlayer: participant.trustTowardPlayer
+  }));
+  console.log("[AIwolf] session metrics:", metrics);
+  persistMetrics();
+
   showPanel("result");
 }
 
@@ -468,6 +542,7 @@ function startGame() {
   elements.chatLog.innerHTML = "";
   renderParticipants();
   elements.activeTopic.textContent = state.topic.title;
+  resetMetrics();
   showPanel("game");
   startRound();
 }
@@ -483,6 +558,7 @@ elements.chatForm.addEventListener("submit", (event) => {
   submitPlayerMessage();
 });
 elements.skipTurn.addEventListener("click", () => {
+  metrics.playerSkipCount += 1;
   elements.systemMessage.textContent = "あなたはこのラウンドをスキップしました。";
   processAgentTurns();
 });
