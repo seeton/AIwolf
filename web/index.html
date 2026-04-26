@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>人間を当てろゲーム</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <p class="eyebrow">iPhone向けブラウザゲーム</p>
+      <h1>人間を当てろゲーム</h1>
+      <p class="hero-copy">AIに紛れた人間を見抜きつつ、相手の人間にもあなたを見抜いてもらう会話ゲーム。</p>
+    </header>
+
+    <main id="app" class="panel-stack">
+      <section class="panel" id="setup-panel">
+        <h2>ルーム設定</h2>
+        <div class="setup-grid">
+          <label>
+            AI人数
+            <input id="ai-count" type="range" min="2" max="12" value="8">
+            <span id="ai-count-value">8人</span>
+          </label>
+          <label>
+            人間人数（あなたを含む）
+            <input id="human-count" type="range" min="2" max="4" value="2">
+            <span id="human-count-value">2人</span>
+          </label>
+          <label>
+            会話ラウンド数
+            <input id="round-count" type="range" min="3" max="8" value="5">
+            <span id="round-count-value">5ラウンド</span>
+          </label>
+          <label>
+            打ち込み猶予
+            <input id="typing-seconds" type="range" min="5" max="15" value="10">
+            <span id="typing-seconds-value">10秒</span>
+          </label>
+        </div>
+
+        <div class="topic-box">
+          <div>
+            <p class="muted">今回のお題</p>
+            <h3 id="topic-title">-</h3>
+            <p id="topic-description" class="topic-description"></p>
+            <p id="topic-keywords" class="keyword-list"></p>
+          </div>
+          <button id="shuffle-topic" class="secondary-button" type="button">お題を変更</button>
+        </div>
+
+        <ul class="rule-list">
+          <li>最初の猶予時間中は送信できません。</li>
+          <li>1ラウンドにつき各参加者は1回だけ発言します。</li>
+          <li>お題に関係するキーワードがない発言は送信できません。</li>
+          <li>勝敗は「あなたの指名」と「隠れ人間からのあなた指名」で判定します。</li>
+        </ul>
+
+        <button id="start-game" class="primary-button" type="button">ゲーム開始</button>
+      </section>
+
+      <section class="panel hidden" id="game-panel">
+        <div class="status-bar">
+          <div>
+            <p class="muted">お題</p>
+            <h2 id="active-topic"></h2>
+          </div>
+          <div class="status-pills">
+            <span class="pill" id="round-indicator"></span>
+            <span class="pill" id="timer-indicator"></span>
+          </div>
+        </div>
+
+        <div class="participants-box">
+          <h3>参加者</h3>
+          <div id="participant-list" class="participant-list"></div>
+        </div>
+
+        <div id="system-message" class="system-message"></div>
+
+        <div id="chat-log" class="chat-log" aria-live="polite"></div>
+
+        <form id="chat-form" class="chat-form">
+          <label for="message-input">あなたの発言</label>
+          <textarea id="message-input" rows="4" maxlength="140" placeholder="お題に沿って、人間っぽい具体性のある一言を書いてください。"></textarea>
+          <div class="compose-footer">
+            <span id="input-hint" class="muted">キーワードを1つ以上入れてください。</span>
+            <div class="button-row">
+              <button id="skip-turn" class="secondary-button" type="button">このラウンドは黙る</button>
+              <button id="send-message" class="primary-button" type="submit">送信</button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel hidden" id="guess-panel">
+        <h2>人間を指名</h2>
+        <p class="muted">会話は終了です。人間だと思う相手を1人選んでください。</p>
+        <div id="guess-options" class="guess-options"></div>
+        <button id="confirm-guess" class="primary-button" type="button" disabled>結果を見る</button>
+      </section>
+
+      <section class="panel hidden" id="result-panel">
+        <h2 id="result-title"></h2>
+        <p id="result-copy" class="result-copy"></p>
+        <div id="result-summary" class="result-summary"></div>
+        <button id="restart-game" class="primary-button" type="button">もう一度遊ぶ</button>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
