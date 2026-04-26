@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIwolf logic tests</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; max-width: 720px; margin: 0 auto; line-height: 1.5; }
+    pre { background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; }
+    .pass { color: #2e7d32; font-weight: 600; }
+    .fail { color: #c62828; font-weight: 600; }
+    .summary { font-weight: bold; margin-top: 12px; display: block; }
+    h1 { margin-bottom: 8px; }
+    p { color: #555; }
+  </style>
+</head>
+<body>
+  <h1>AIwolf logic tests</h1>
+  <p>Browser を開きなおすと再実行されます。<code>web/logic.js</code> の純粋関数を検証します。</p>
+  <pre id="results">running...</pre>
+
+  <script src="./logic.js"></script>
+  <script>
+    const { shuffle, getRecentSpeakerStreak, applyStreakLimit, isOnTopic } = window.AIwolfLogic;
+
+    const tests = [];
+    function test(name, fn) { tests.push({ name, fn }); }
+    function assert(condition, message) {
+      if (!condition) throw new Error(message || "assertion failed");
+    }
+    function assertEq(actual, expected, message) {
+      if (actual !== expected) {
+        throw new Error((message ? message + " — " : "") + `expected=${JSON.stringify(expected)} got=${JSON.stringify(actual)}`);
+      }
+    }
+
+    // --- shuffle ---
+    test("shuffle preserves length and elements", () => {
+      const list = [1, 2, 3, 4, 5];
+      const out = shuffle(list);
+      assertEq(out.length, 5, "length");
+      const sortedIn = [...list].sort((a, b) => a - b);
+      const sortedOut = [...out].sort((a, b) => a - b);
+      assertEq(JSON.stringify(sortedOut), JSON.stringify(sortedIn), "elements");
+    });
+
+    test("shuffle does not mutate the input array", () => {
+      const list = [1, 2, 3];
+      const original = JSON.stringify(list);
+      shuffle(list);
+      assertEq(JSON.stringify(list), original, "input array");
+    });
+
+    // --- getRecentSpeakerStreak ---
+    test("getRecentSpeakerStreak returns null for empty chat", () => {
+      const result = getRecentSpeakerStreak([]);
+      assertEq(result.speakerId, null);
+      assertEq(result.streak, 0);
+    });
+
+    test("getRecentSpeakerStreak counts contiguous trailing same-speaker", () => {
+      const result = getRecentSpeakerStreak([
+        { speakerId: "x" },
+        { speakerId: "a" },
+        { speakerId: "a" },
+        { speakerId: "a" }
+      ]);
+      assertEq(result.speakerId, "a");
+      assertEq(result.streak, 3);
+    });
+
+    test("getRecentSpeakerStreak resets when speaker changes at the end", () => {
+      const result = getRecentSpeakerStreak([
+        { speakerId: "a" },
+        { speakerId: "a" },
+        { speakerId: "b" }
+      ]);
+      assertEq(result.speakerId, "b");
+      assertEq(result.streak, 1);
+    });
+
+    // --- applyStreakLimit ---
+    test("applyStreakLimit returns plain shuffle when no chat", () => {
+      const participants = [{ id: "a" }, { id: "b" }, { id: "c" }];
+      const out = applyStreakLimit(participants, [], 1);
+      assertEq(out.length, 3);
+    });
+
+    test("applyStreakLimit returns plain shuffle when streak below limit", () => {
+      const participants = [{ id: "a" }, { id: "b" }, { id: "c" }];
+      const chat = [{ speakerId: "a" }];
+      const out = applyStreakLimit(participants, chat, 2);
+      assertEq(out.length, 3);
+    });
+
+    test("regression: applyStreakLimit moves blocked speaker even when shuffled to index 0", () => {
+      // Pre-fix bug: blockedIndex > 0 skipped index 0, so the same speaker could speak again first.
+      // Loop enough iterations to expose the case across random shuffles.
+      const participants = [{ id: "a" }, { id: "b" }, { id: "c" }];
+      const chat = [{ speakerId: "a" }];
+      for (let i = 0; i < 500; i += 1) {
+        const out = applyStreakLimit(participants, chat, 1);
+        if (out[0].id === "a") {
+          throw new Error(`iteration ${i}: speaker 'a' must not be at index 0 when streak >= limit`);
+        }
+      }
+    });
+
+    test("applyStreakLimit places blocked speaker at the end", () => {
+      const participants = [{ id: "a" }, { id: "b" }];
+      const chat = [{ speakerId: "a" }];
+      for (let i = 0; i < 50; i += 1) {
+        const out = applyStreakLimit(participants, chat, 1);
+        assertEq(out[out.length - 1].id, "a", `iteration ${i}: 'a' must be last`);
+      }
+    });
+
+    // --- isOnTopic ---
+    test("isOnTopic matches when keyword present (case-insensitive)", () => {
+      assert(isOnTopic("カフェで本を読む", ["カフェ", "本"]));
+      assert(isOnTopic("RAIN", ["rain"]));
+    });
+
+    test("isOnTopic rejects when no keyword present", () => {
+      assert(!isOnTopic("コンビニで購買した", ["カフェ", "雨"]));
+    });
+
+    test("isOnTopic accepts substring match (documented current behavior)", () => {
+      assert(isOnTopic("傘がない", ["傘"]));
+    });
+
+    // --- run ---
+    const out = document.getElementById("results");
+    let passed = 0;
+    let failed = 0;
+    const lines = [];
+    for (const t of tests) {
+      try {
+        t.fn();
+        passed += 1;
+        lines.push(`<span class="pass">PASS</span>: ${t.name}`);
+      } catch (e) {
+        failed += 1;
+        lines.push(`<span class="fail">FAIL</span>: ${t.name}\n      ${e.message}`);
+      }
+    }
+    out.innerHTML = `<span class="summary">${passed} passed, ${failed} failed</span>\n\n` + lines.join("\n");
+  </script>
+</body>
+</html>

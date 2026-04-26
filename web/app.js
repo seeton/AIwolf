@@ -62,7 +62,7 @@ const metrics = {
   endedAt: 0,
   topicTitle: "",
   topicDifficulty: "",
-  config: { aiCount: 0, humanCount: 0, rounds: 0 },
+  config: { aiCount: 0, humanCount: 0, rounds: 0, personaIntensity: 0 },
   topicRejectCount: 0,
   playerSkipCount: 0,
   playerSendCount: 0,
@@ -79,7 +79,8 @@ function resetMetrics() {
   metrics.config = {
     aiCount: state.config.aiCount,
     humanCount: state.config.humanCount,
-    rounds: state.config.rounds
+    rounds: state.config.rounds,
+    personaIntensity: state.config.personaIntensity
   };
   metrics.topicRejectCount = 0;
   metrics.playerSkipCount = 0;
@@ -108,7 +109,8 @@ const state = {
     humanCount: 2,
     rounds: 5,
     typingSeconds: 10,
-    streakLimit: 1
+    streakLimit: 1,
+    personaIntensity: 0.7
   },
   topic: null,
   recentTopicTitles: [],
@@ -125,10 +127,12 @@ const elements = {
   humanCount: document.getElementById("human-count"),
   roundCount: document.getElementById("round-count"),
   typingSeconds: document.getElementById("typing-seconds"),
+  personaIntensity: document.getElementById("persona-intensity"),
   aiCountValue: document.getElementById("ai-count-value"),
   humanCountValue: document.getElementById("human-count-value"),
   roundCountValue: document.getElementById("round-count-value"),
   typingSecondsValue: document.getElementById("typing-seconds-value"),
+  personaIntensityValue: document.getElementById("persona-intensity-value"),
   topicTitle: document.getElementById("topic-title"),
   topicDescription: document.getElementById("topic-description"),
   topicKeywords: document.getElementById("topic-keywords"),
@@ -158,17 +162,10 @@ const elements = {
   restartGame: document.getElementById("restart-game")
 };
 
+const { shuffle, getRecentSpeakerStreak, applyStreakLimit, isOnTopic } = window.AIwolfLogic;
+
 function randomItem(list) {
   return list[Math.floor(Math.random() * list.length)];
-}
-
-function shuffle(list) {
-  const cloned = [...list];
-  for (let index = cloned.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [cloned[index], cloned[randomIndex]] = [cloned[randomIndex], cloned[index]];
-  }
-  return cloned;
 }
 
 function formatParticipantRole(participant) {
@@ -189,38 +186,6 @@ function buildInitialHiddenTrust(mbti) {
   );
 }
 
-function getRecentSpeakerStreak() {
-  if (state.chat.length === 0) {
-    return { speakerId: null, streak: 0 };
-  }
-
-  const lastSpeakerId = state.chat[state.chat.length - 1].speakerId;
-  let streak = 0;
-  for (let index = state.chat.length - 1; index >= 0; index -= 1) {
-    if (state.chat[index].speakerId !== lastSpeakerId) {
-      break;
-    }
-    streak += 1;
-  }
-
-  return { speakerId: lastSpeakerId, streak };
-}
-
-function applyStreakLimit(participants) {
-  const ordered = shuffle(participants);
-  const { speakerId, streak } = getRecentSpeakerStreak();
-  if (!speakerId || streak < state.config.streakLimit) {
-    return ordered;
-  }
-
-  const blockedIndex = ordered.findIndex((participant) => participant.id === speakerId);
-  if (blockedIndex >= 0) {
-    const [blockedParticipant] = ordered.splice(blockedIndex, 1);
-    ordered.push(blockedParticipant);
-  }
-  return ordered;
-}
-
 function pickTopic() {
   const candidates = TOPICS.filter((topic) => !state.recentTopicTitles.includes(topic.title));
   const pool = candidates.length > 0 ? candidates : TOPICS;
@@ -239,10 +204,16 @@ function updateSetupValues() {
   state.config.humanCount = Number(elements.humanCount.value);
   state.config.rounds = Number(elements.roundCount.value);
   state.config.typingSeconds = Number(elements.typingSeconds.value);
+  if (elements.personaIntensity) {
+    state.config.personaIntensity = Number(elements.personaIntensity.value) / 100;
+  }
   elements.aiCountValue.textContent = `${state.config.aiCount}人`;
   elements.humanCountValue.textContent = `${state.config.humanCount}人`;
   elements.roundCountValue.textContent = `${state.config.rounds}ラウンド`;
   elements.typingSecondsValue.textContent = `${state.config.typingSeconds}秒`;
+  if (elements.personaIntensityValue) {
+    elements.personaIntensityValue.textContent = `${Math.round(state.config.personaIntensity * 100)}%`;
+  }
 }
 
 function createParticipants() {
@@ -318,14 +289,9 @@ function addChatMessage(message) {
   elements.chatLog.scrollTop = elements.chatLog.scrollHeight;
 }
 
-function isOnTopic(text) {
-  const lowered = text.trim().toLowerCase();
-  return state.topic.keywords.some((keyword) => lowered.includes(keyword.toLowerCase()));
-}
-
 function scorePlayerMessage(text) {
   let score = 0.12;
-  if (isOnTopic(text)) {
+  if (isOnTopic(text, state.topic.keywords)) {
     score += 0.2;
   }
   if (text.includes("？") || text.includes("?")) {
@@ -362,11 +328,19 @@ function buildAgentMessage(participant) {
     ? `、${truncateCharacters(previousPlayerMessage.text, MAX_CALLBACK_LENGTH)}に少し近い`
     : "";
 
+  const usePersona = Math.random() < state.config.personaIntensity;
+
   if (participant.role === "hidden-human") {
-    return `${profile.humanCue}${callback}${prompt}${keyword}が入ると一気に空気が決まる気がします。${detail}まで思い出せる話の方が人っぽくて好きです。`;
+    if (usePersona) {
+      return `${profile.humanCue}${callback}${prompt}${keyword}が入ると一気に空気が決まる気がします。${detail}まで思い出せる話の方が人っぽくて好きです。`;
+    }
+    return `${callback}${prompt}${keyword}が入ると会話が決まる気がします。${detail}まで具体的に話せると人っぽい。`;
   }
 
-  return `${profile.opener}${callback}${keyword}の話になると、${profile.style}感じで${detail}まで触れる人は自然に見えます。自分はその辺を少し意識します。`;
+  if (usePersona) {
+    return `${profile.opener}${callback}${keyword}の話になると、${profile.style}感じで${detail}まで触れる人は自然に見えます。自分はその辺を少し意識します。`;
+  }
+  return `${callback}${keyword}の話だと${detail}まで触れる人が自然に見えます。自分も意識します。`;
 }
 
 function setComposerEnabled(enabled) {
@@ -410,7 +384,11 @@ function advanceRound() {
 
 function processAgentTurns() {
   setComposerEnabled(false);
-  const speakers = applyStreakLimit(state.participants.filter((participant) => participant.id !== "player"));
+  const speakers = applyStreakLimit(
+    state.participants.filter((participant) => participant.id !== "player"),
+    state.chat,
+    state.config.streakLimit
+  );
 
   speakers.forEach((participant) => {
     metrics.agentSpeechCounts[participant.id] = (metrics.agentSpeechCounts[participant.id] || 0) + 1;
@@ -432,7 +410,7 @@ function submitPlayerMessage() {
     elements.systemMessage.textContent = "空欄では送信できません。";
     return;
   }
-  if (!isOnTopic(text)) {
+  if (!isOnTopic(text, state.topic.keywords)) {
     metrics.topicRejectCount += 1;
     elements.systemMessage.textContent = "お題外の発言は禁止です。キーワードを含めてください。";
     return;
@@ -551,6 +529,9 @@ elements.aiCount.addEventListener("input", updateSetupValues);
 elements.humanCount.addEventListener("input", updateSetupValues);
 elements.roundCount.addEventListener("input", updateSetupValues);
 elements.typingSeconds.addEventListener("input", updateSetupValues);
+if (elements.personaIntensity) {
+  elements.personaIntensity.addEventListener("input", updateSetupValues);
+}
 elements.shuffleTopic.addEventListener("click", pickTopic);
 elements.startGame.addEventListener("click", startGame);
 elements.chatForm.addEventListener("submit", (event) => {

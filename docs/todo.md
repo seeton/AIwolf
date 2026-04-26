@@ -11,10 +11,10 @@
 ## B. コード — 既存実装の改善
 
 - [ ] お題オフトピック判定を LLM / 埋め込み類似度に置換 (現状の単純キーワードマッチはキーワード混入で突破可)
-- [ ] MBTI ペルソナの強度パラメータ化 (固定 vs 可変、overfit 防止)
+- [x] MBTI ペルソナの強度パラメータ化 — `state.config.personaIntensity` (0-1, default 0.7) を追加。setup スライダーで調整、`buildAgentMessage` 内で確率的にペルソナ装飾を発火する分岐
 - [ ] 非プレイヤー発話の pacing / streak 制御の妥当性検証 — 計測ログが出るようになったので Round 3 候補
 - [x] お題の短期再出題抑止 (`TOPIC_HISTORY_LIMIT=2` 件を `state.recentTopicTitles` で除外)
-- [ ] 移植直後の streak バグ修正 (`web/app.js:163` `blockedIndex >= 0`) の自動テスト化 — 現状テスト基盤なし
+- [x] 移植直後の streak バグ修正の自動テスト化 — 純粋関数を `web/logic.js` に分離し、`web/test.html` で 500 回 shuffle してインデックス 0 ケースを潰す回帰テストを実装 (browser で開けば走る)
 
 ## C. コード — 未実装機能
 
@@ -50,7 +50,7 @@
 - [ ] 失敗パターン台帳の保管場所決定 (`CLAUDE.md` か `docs/ledger.md`)
 - [ ] iter 0 軽微指摘:
   - [ ] `SKILL.md` description を body の use case 全部カバーする形に拡張 (ユーザ提供本文のため保留中)
-  - [ ] `CLAUDE.md` top に「Claude Code 用の指示書も兼ねる」1 行追加 (好みの範疇)
+  - [x] `CLAUDE.md` top に「Claude Code 用の指示書も兼ねる」1 行追加
 
 ## G. 中長期構想 (思考メモ枠)
 

@@ -1,9 +1,10 @@
 # AIwolf
 
-iPhone 向けブラウザゲーム「人間を当てろゲーム」のリポジトリ。
+iPhone 向けブラウザゲーム「人間を当てろゲーム」のリポジトリ。Claude Code から触る前提の指示書 (CLAUDE.md) も兼ねる。
 プレイヤーは MBTI バイアスを持つ AI 群に紛れて、もう一人の「隠れ人間」と互いを見抜き合う。
 
 経緯: 元々 `seeton/python2#1` (Copilot 作成) の MVP を、本来やるべき新規リポジトリとして本ディレクトリで仕切り直したもの。実装したい仕様は当該 PR に準ずる。
+公開: `https://github.com/seeton/AIwolf` / Pages 配信 `https://seeton.github.io/AIwolf/`。
 
 ## Claude への基本指示
 
